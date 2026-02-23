@@ -1,22 +1,19 @@
 import argparse
 import sys
+import typing
 
-from pyfrets.chords import (
-    chord_name_to_interval_names,
-    chord_name_to_note_names,
-    chord_name_to_pitches,
-)
+from pyfrets.chords import Chord
 from pyfrets.guitar import Cell, Fretboard, Orientation
-from pyfrets.notes import (
-    key_name_to_note_names,
-    key_name_to_pitches,
-    prettify_interval,
-    prettify_note,
-)
+from pyfrets.scales import Mode, Scale
 
 SCALE_NOTE_COLORS = ["red", "black", "green", "magenta", "blue", "black", "magenta"]
-DIATONIC_NOTE_FUNCTIONS = ["R", "2", "3", "4", "5", "6", "7"]
-PENTATONIC_NOTE_FUNCTIONS = ["R", "3", "4", "5", "7"]
+SCALE_NOTE_FUNCTIONS = ["R", "2", "3", "4", "5", "6", "7"]
+
+T = typing.TypeVar("T")
+
+
+def pentatonic(lst: list[T]) -> list[T]:
+    return [lst[x] for x in [0, 2, 3, 4, 6]]
 
 
 def plot_notes(
@@ -63,7 +60,10 @@ def main() -> None:
     )
     subparser = subparsers.add_parser("scale", help="Show the notes of a scale.")
     subparser.add_argument("--pentatonic", action="store_true")
-    subparser.add_argument("key")
+    subparser.add_argument(
+        "--scale-mode", default=Mode.IONIAN, type=lambda x: Mode(int(x))
+    )
+    subparser.add_argument("--scale-root", default="C")
 
     subparser = subparsers.add_parser("chord", help="Show the notes of a chord.")
     subparser.add_argument("chord")
@@ -76,43 +76,35 @@ def main() -> None:
 
     # Determine notes.
     if options.command == "scale":
-        names = key_name_to_note_names(options.key)
-        pitches = key_name_to_pitches(options.key)
-        if options.pentatonic:
-            # Pentatonic scale.
-            note_functions = PENTATONIC_NOTE_FUNCTIONS
-            scale_type = "pentatonic"
-        else:
-            # Diatonic scale.
-            note_functions = DIATONIC_NOTE_FUNCTIONS
-            scale_type = "diatonic"
+        scale = Scale(options.scale_root, options.scale_mode)
+        note_colors = SCALE_NOTE_COLORS
+        note_functions = SCALE_NOTE_FUNCTIONS
+        note_names = scale.pretty_notes
+        note_values = scale.pitches
 
-        if options.key[0] == options.key[0].upper():
-            key_type = "major"
-        else:
-            key_type = "minor"
-        note_indexes = [DIATONIC_NOTE_FUNCTIONS.index(n) for n in note_functions]
-        note_names = [prettify_interval(names[i]) for i in note_indexes]
-        note_values = [pitches[i] for i in note_indexes]
+        if options.pentatonic:
+            note_colors = pentatonic(note_colors)
+            note_functions = pentatonic(note_functions)
+            note_names = pentatonic(note_names)
+            note_values = pentatonic(note_values)
 
         # Display note names.
         for function, name in zip(note_functions, note_names):
             sys.stdout.write(f"{function} = {name}\n")
 
         plot_notes(
-            basename=f"{scale_type}-{options.key.lower()}-{key_type}",
-            note_colors=[SCALE_NOTE_COLORS[i] for i in note_indexes],
+            basename=f"scale-{options.scale_root}-mode-{options.scale_mode.name.lower()}",
+            note_colors=note_colors,
             note_texts=note_names if options.note_names else note_functions,
             note_values=note_values,
             orientation=orientation,
         )
 
     else:
-        note_functions = [
-            prettify_interval(i) for i in chord_name_to_interval_names(options.chord)
-        ]
-        note_names = [prettify_note(n) for n in chord_name_to_note_names(options.chord)]
-        note_values = chord_name_to_pitches(options.chord)
+        chord = Chord(options.chord)
+        note_functions = chord.quality.pretty_intervals
+        note_names = chord.pretty_notes
+        note_values = chord.pitches
 
         # Display note names.
         for function, name in zip(note_functions, note_names):
