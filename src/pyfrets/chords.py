@@ -2,33 +2,55 @@ import dataclasses
 import functools
 import re
 
-from pyfrets.notes import (
-    MAJOR_SCALE,
+from .notes import (
     NOTE_ALPHABET,
     ROMAN_ALPHABET,
     augment,
     diminish,
-    key_name_to_note_names,
-    note_name_from_roman,
     note_name_to_pitch,
     parse_note_alteration,
+    prettify_chord,
+    prettify_interval,
+    prettify_note,
     shift,
 )
+from .scales import Mode, Scale
+
+MAJOR_SCALE = (0, 2, 4, 5, 7, 9, 11)
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=True)
 class Quality:
-    notation: str
+    """
+    A chord quality made up of two or more intervals.
+    """
+
+    name: str
+    "The name of the quality."
+
     intervals: tuple[str, ...]
+    "The names of the intervals that make up the quality."
+
     description: str
+    "A textual description of the quality."
 
     @functools.cached_property
     def pitches(self) -> list[int]:
+        """
+        The pitch offset of the intervals that make up the quality.
+        """
         return [_get_interval_pitch(i) for i in self.intervals]
+
+    @property
+    def pretty_intervals(self) -> list[str]:
+        """
+        The pretty names of the intervals that make up the quality.
+        """
+        return [prettify_interval(i) for i in self.intervals]
 
 
 CHORD_QUALITIES = {
-    quality.notation: quality
+    quality.name: quality
     for quality in [
         # 3 notes
         Quality("", ("1", "3", "5"), "major triad"),
@@ -72,7 +94,7 @@ def _apply_interval_to_note(root: str, interval: str) -> str:
     alterations, offset = _parse_interval(interval)
 
     # Apply the interval and alteration.
-    notes_in_key = key_name_to_note_names(root)
+    notes_in_key = Scale(root, Mode.IONIAN).notes
     note = notes_in_key[offset % 7]
     for alteration in alterations:
         if alteration == "#":
@@ -117,72 +139,113 @@ def _parse_chord_name(name: str, alphabet: list[str]) -> tuple[str, Quality, str
     return root, quality, over
 
 
-def chord_name_from_roman(roman: str, key: str) -> str:
+class Chord:
     """
-    Return a chord name for the given `roman` chord notation in the specified `key`.
+    A chord made up of two or more notes.
     """
-    numeral, quality, over = _parse_chord_name(roman, ROMAN_ALPHABET)
-    numeral, alteration = parse_note_alteration(numeral)
 
-    # get root
-    minor = numeral.islower()
-    chord = note_name_from_roman(numeral, key) + alteration
-    if minor and quality.notation != "dim":
-        chord += "m"
-    chord += quality.notation
+    def __init__(self, name: str) -> None:
+        self._name = name
+        self._root, self._quality, self._over = _parse_chord_name(name, NOTE_ALPHABET)
 
-    # bass
-    if over:
-        chord += "/" + note_name_from_roman(over, key)
+    @property
+    def description(self) -> str:
+        """
+        A textual description of the chord.
+        """
+        description = f"{self.root} {self.quality.description}"
+        if self._over:
+            description += f" over {self._over}"
+        return description
 
-    return chord
+    @property
+    def name(self) -> str:
+        """
+        The name of the chord.
+        """
+        return self._name
 
+    @property
+    def notes(self) -> list[str]:
+        """
+        The names of the notes making up the chord.
+        """
+        notes = [
+            _apply_interval_to_note(self._root, interval)
+            for interval in self._quality.intervals
+        ]
+        if self._over:
+            notes.insert(0, self._over)
+        return notes
 
-def chord_name_to_description(chord: str) -> str:
-    """
-    Return a textual description for the given `chord`.
-    """
-    root_name, quality, over = _parse_chord_name(chord, NOTE_ALPHABET)
-    description = f"{root_name} {quality.description}"
-    if over:
-        description += f" over {over}"
-    return description
+    @property
+    def pitches(self) -> list[int]:
+        """
+        The pitches of the notes making up the chord.
+        """
+        root_pitch = note_name_to_pitch(self._root)
 
+        pitches = shift(root_pitch, self._quality.pitches)
+        if self._over:
+            over_pitch = note_name_to_pitch(self._over)
+            if over_pitch >= root_pitch:
+                over_pitch -= 12
+            pitches.insert(0, over_pitch)
 
-def chord_name_to_pitches(chord: str) -> list[int]:
-    """
-    Return the pitches to play the specified `chord`.
-    """
-    root_name, quality, over = _parse_chord_name(chord, NOTE_ALPHABET)
-    root_pitch = note_name_to_pitch(root_name)
+        return pitches
 
-    pitches = shift(root_pitch, quality.pitches)
-    if over:
-        over_pitch = note_name_to_pitch(over)
-        if over_pitch >= root_pitch:
-            over_pitch -= 12
-        pitches.insert(0, over_pitch)
+    @property
+    def pretty_name(self) -> str:
+        """
+        The pretty name of the chord.
+        """
+        return prettify_chord(self._name)
 
-    return pitches
+    @property
+    def pretty_notes(self) -> list[str]:
+        """
+        The pretty names of the notes making up the chord.
+        """
+        return [prettify_note(n) for n in self.notes]
 
+    @property
+    def pretty_root(self) -> str:
+        """
+        The pretty name of the root note of the chord.
+        """
+        return prettify_note(self._root)
 
-def chord_name_to_interval_names(chord: str) -> list[str]:
-    """
-    Return the interval names for the specified `chord`.
-    """
-    root_name, quality, over = _parse_chord_name(chord, NOTE_ALPHABET)
-    assert not over, "Slash chords are not supported"
-    return list(quality.intervals)
+    @property
+    def quality(self) -> Quality:
+        """
+        The quality of the chord.
+        """
+        return self._quality
 
+    @property
+    def root(self) -> str:
+        """
+        The name of the root note of the chord.
+        """
+        return self._root
 
-def chord_name_to_note_names(chord: str) -> list[str]:
-    """
-    Return the note names to play the specified `chord`.
-    """
-    root_name, quality, over = _parse_chord_name(chord, NOTE_ALPHABET)
-    names = [
-        _apply_interval_to_note(root_name, interval) for interval in quality.intervals
-    ]
-    if over:
-        names.insert(0, over)
-    return names
+    @classmethod
+    def from_roman(cls, roman: str, scale: Scale) -> "Chord":
+        """
+        Return a chord for the given `roman` chord notation in the specified `scale`.
+        """
+        numeral, quality, over = _parse_chord_name(roman, ROMAN_ALPHABET)
+        numeral, alteration = parse_note_alteration(numeral)
+
+        # get root
+        minor = numeral.islower()
+        chord = scale.note_from_roman(numeral) + alteration
+        if minor and quality.name != "dim":
+            chord += "m"
+        chord += quality.name
+
+        # bass
+        if over:
+            chord += "/" + scale.note_from_roman(over)
+
+        return cls(chord)

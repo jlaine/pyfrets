@@ -1,13 +1,8 @@
 import dataclasses
 import unittest
 
-from pyfrets.chords import (
-    chord_name_from_roman,
-    chord_name_to_description,
-    chord_name_to_interval_names,
-    chord_name_to_note_names,
-    chord_name_to_pitches,
-)
+from pyfrets.chords import Chord
+from pyfrets.scales import Mode, Scale
 
 
 @dataclasses.dataclass
@@ -18,7 +13,7 @@ class ChordInfo:
 
 
 class ChordsTest(unittest.TestCase):
-    def test_chord_name_from_roman(self) -> None:
+    def test_chord_from_roman(self) -> None:
         chords = {
             # major
             "I": "C",
@@ -43,15 +38,16 @@ class ChordsTest(unittest.TestCase):
             "IVmaj7": "Fmaj7",
             "IV/I": "F/C",
         }
-        key = "C"
+        scale = Scale("C", Mode.IONIAN)
         for roman, name in chords.items():
-            with self.subTest(roman=roman, key=key):
-                self.assertEqual(chord_name_from_roman(roman, key), name)
+            with self.subTest(roman=roman, scale=scale):
+                chord = Chord.from_roman(roman, scale)
+                self.assertEqual(chord.name, name)
 
         with self.assertRaises(ValueError):
-            chord_name_from_roman("VV", key)
+            Chord.from_roman("VV", scale)
 
-    def test_chord_name_from_roman_minor_key(self) -> None:
+    def test_chord_from_roman_minor_key(self) -> None:
         chords = {
             "I": "E",
             "II": "F#",
@@ -64,10 +60,11 @@ class ChordsTest(unittest.TestCase):
             "VIIdim": "Ddim",
             "viidim": "Ddim",
         }
-        key = "e"
+        scale = Scale("E", Mode.AEOLIAN)
         for roman, name in chords.items():
-            with self.subTest(roman=roman, key=key):
-                self.assertEqual(chord_name_from_roman(roman, key), name)
+            with self.subTest(roman=roman, scale=scale):
+                chord = Chord.from_roman(roman, scale)
+                self.assertEqual(chord.name, name)
 
     def test_chords(self) -> None:
         chords = {
@@ -284,9 +281,15 @@ class ChordsTest(unittest.TestCase):
         }
         for name, info in chords.items():
             with self.subTest(name=name):
-                self.assertEqual(chord_name_to_description(name), info.description)
-                self.assertEqual(chord_name_to_note_names(name), info.notes)
-                self.assertEqual(chord_name_to_pitches(name), info.pitches)
+                chord = Chord(name)
+                self.assertEqual(chord.description, info.description)
+                self.assertEqual(chord.name, name)
+                self.assertEqual(chord.notes, info.notes)
+                self.assertEqual(chord.pitches, info.pitches)
 
-    def test_chord_name_to_interval_names(self) -> None:
-        self.assertEqual(chord_name_to_interval_names("C"), ["1", "3", "5"])
+    def test_pretty(self) -> None:
+        chord = Chord("Cbm")
+        self.assertEqual(chord.pretty_name, "C♭m")
+        self.assertEqual(chord.pretty_notes, ["C♭", "E𝄫", "G♭"])
+        self.assertEqual(chord.pretty_root, "C♭")
+        self.assertEqual(chord.quality.pretty_intervals, ["1", "♭3", "5"])

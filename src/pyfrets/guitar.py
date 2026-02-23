@@ -1,13 +1,18 @@
 import dataclasses
 import enum
-from typing import Iterator, Optional
+from typing import Iterator
 
 from colorama import Back, Fore, Style
 
-from pyfrets.notes import Note
-
 FRETS = 16
-STRINGS = [Note.E2, Note.A2, Note.D3, Note.G3, Note.B3, Note.E4]
+STRINGS = [
+    40,  # E2
+    45,  # A2
+    50,  # D3
+    55,  # G3
+    59,  # B3
+    64,  # E4
+]
 
 
 @dataclasses.dataclass
@@ -23,7 +28,7 @@ class Orientation(enum.Enum):
 
 class Fretboard:
     def __init__(self) -> None:
-        self._cells: list[list[Optional[Cell]]] = [
+        self._cells: list[list[Cell | None]] = [
             [None for x in STRINGS] for f in range(FRETS)
         ]
 
@@ -171,7 +176,7 @@ class Fretboard:
         output += "</g></svg>"
         return output
 
-    def set(self, pos: tuple[int, int], value: Optional[Cell]) -> None:
+    def set(self, pos: tuple[int, int], value: Cell | None) -> None:
         self._cells[pos[0]][pos[1]] = value
 
     def walk(self) -> Iterator[tuple[tuple[int, int], int]]:
