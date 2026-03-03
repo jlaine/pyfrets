@@ -26,6 +26,15 @@ class Orientation(enum.Enum):
     LANDSCAPE = "LANDSCAPE"
 
 
+def pad(i: str, p: str) -> str:
+    if len(i) == 1:
+        return p + i + p
+    elif len(i) == 2:
+        return p + i
+    else:
+        return i
+
+
 class Fretboard:
     def __init__(self) -> None:
         self._cells: list[list[Cell | None]] = [
@@ -42,23 +51,15 @@ class Fretboard:
             return self._dump_ansi_portrait()
 
     def _dump_ansi_landscape(self) -> str:
-        def pad(i: str) -> str:
-            if len(i) == 1:
-                return "-" + i + "-"
-            elif len(i) == 2:
-                return "-" + i
-            else:
-                return i
-
         lines = []
         empty_line = "   ||" + ("   |" * (FRETS - 1))
         for string_idx in range(len(STRINGS) - 1, -1, -1):
             cells = [row[string_idx] for row in self._cells]
             line = "".join(
                 (
-                    getattr(Fore, cell.color.upper()) + pad(cell.text) + Fore.BLACK
+                    getattr(Fore, cell.color.upper()) + pad(cell.text, "-")
                     if cell is not None
-                    else (Fore.BLACK + pad("-") + Fore.RESET)
+                    else (Fore.BLACK + pad("-", "-"))
                 )
                 + Fore.BLACK
                 + ("|" if idx else "||")
@@ -75,23 +76,15 @@ class Fretboard:
         return "".join(line + Style.RESET_ALL + "\n" for line in lines)
 
     def _dump_ansi_portrait(self) -> str:
-        def pad(i: str) -> str:
-            if len(i) == 1:
-                return " " + i + " "
-            elif len(i) == 2:
-                return " " + i
-            else:
-                return i
-
         indent = "   "
         lines = []
         width = 5 * len(STRINGS) - 2
         for idx, row in enumerate(self._cells):
             line = "  ".join(
                 (
-                    (getattr(Fore, cell.color.upper()) + pad(cell.text) + Fore.BLACK)
+                    (getattr(Fore, cell.color.upper()) + pad(cell.text, " "))
                     if cell is not None
-                    else (Fore.BLACK + pad("|") + Fore.RESET)
+                    else (Fore.BLACK + pad("|", " "))
                 )
                 for cell in row
             )
@@ -109,6 +102,7 @@ class Fretboard:
         padding = 10
         fret_spacing = 30
         string_spacing = 20
+        circle_radius = 8
         board_width = string_spacing * (len(STRINGS) - 1)
         board_height = fret_spacing * FRETS
         image_width = board_width + 4 * padding
@@ -125,13 +119,15 @@ class Fretboard:
             svg_viewbox = f"0 0 {image_width} {image_height}"
             text_angle = 0
 
-        output = f'<svg viewBox="{svg_viewbox}" xmlns="http://www.w3.org/2000/svg">'
-        output += f'<g transform="{svg_transform}">'
+        output = [
+            f'<svg viewBox="{svg_viewbox}" xmlns="http://www.w3.org/2000/svg">',
+            f'<g transform="{svg_transform}">',
+        ]
 
         # Draw strings
         for string_idx, string_note in enumerate(STRINGS):
             x = padding + string_idx * string_spacing
-            output += (
+            output.append(
                 f'<line x1="{x}" y1="{padding}"'
                 f' x2="{x}" y2="{padding + board_height}" stroke="black"/>'
             )
@@ -139,7 +135,7 @@ class Fretboard:
         # Draw frets.
         for fret_idx in range(FRETS + 1):
             y = padding + fret_idx * fret_spacing
-            output += (
+            output.append(
                 f'<line x1="{padding}" y1="{y}"'
                 f' x2="{padding + board_width}" y2="{y}"'
                 f' stroke="black" stroke-width="{2 if fret_idx == 1 else 1}"/>'
@@ -148,24 +144,24 @@ class Fretboard:
         # Draw markers and number frets.
         for fret_idx, row in enumerate(self._cells):
             cx = -padding
-            cy = padding + (fret_idx + 0.5) * fret_spacing
+            cy = int(padding + (fret_idx + 0.5) * fret_spacing)
 
-            output += (
+            output.append(
                 f'<text x="{cx}" y="{cy + 4}"'
                 f' font-family="{font_family}" font-size="{font_size}"'
                 f' text-anchor="middle"'
                 f' transform="rotate({text_angle}, {cx}, {cy})">'
-                f"{fret_idx}</text>\n"
+                f"{fret_idx}</text>"
             )
 
             for string_idx, cell in enumerate(row):
                 if cell is not None:
                     cx = padding + string_idx * string_spacing
-                    output += (
-                        f'<circle cx="{cx}" cy="{cy}" r="{string_spacing / 2.5}"'
-                        f' stroke="{cell.color}" fill="white" />'
+                    output.append(
+                        f'<circle cx="{cx}" cy="{cy}" r="{circle_radius}"'
+                        f' stroke="{cell.color}" fill="white"/>'
                     )
-                    output += (
+                    output.append(
                         f'<text x="{cx}" y="{cy + 4}" fill="{cell.color}"'
                         f' font-family="{font_family}" font-size="{font_size}"'
                         ' text-anchor="middle"'
@@ -173,8 +169,8 @@ class Fretboard:
                         f"{cell.text}</text>"
                     )
 
-        output += "</g></svg>"
-        return output
+        output += ["</g>", "</svg>"]
+        return "\n".join(output) + "\n"
 
     def set(self, pos: tuple[int, int], value: Cell | None) -> None:
         self._cells[pos[0]][pos[1]] = value
