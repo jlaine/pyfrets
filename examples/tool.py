@@ -1,5 +1,6 @@
 import argparse
 import dataclasses
+import re
 from fractions import Fraction
 from typing import Iterable
 
@@ -15,9 +16,78 @@ from pyfrets.tracks import Track
 class Song:
     chord_pattern: str
     key: str
-    scale: Scale
     beats_per_minute: int = 120
     strum_pattern: str = "D-D-D-D-"
+
+    @property
+    def scale(self) -> Scale:
+        m = re.match("^([A-G]) (major|minor)$", self.key)
+        assert m, "Could not parse key"
+        if m.group(2) == "major":
+            return Scale(m.group(1), Mode.IONIAN)
+        else:
+            return Scale(m.group(1), Mode.AEOLIAN)
+
+
+SONGS = {
+    "50s": Song(
+        chord_pattern="I vi IV V",
+        key="C major",
+    ),
+    "50-ways-to-leave-your-lover": Song(
+        chord_pattern="i/III VII6 VImaj7 V7b9 "
+        + "i VII#dim7 IIdim7 Vaug7 "
+        + "i VII6 VImaj7 V7b9 "
+        + "i iv7 i",
+        key="E minor",
+        strum_pattern="D---",
+    ),
+    "blues": Song(
+        chord_pattern="I7 I7 I7 I7 IV7 IV7 I7 I7 V7 IV7 I7 V7",
+        key="A minor",
+    ),
+    "blues-quick-change": Song(
+        chord_pattern="I7 IV7 I7 I7 IV7 IV7 I7 I7 V7 IV7 I7 V7",
+        key="A minor",
+    ),
+    "blues-slow-change": Song(
+        chord_pattern="I7 I7 I7 I7 IV7 IV7 I7 I7 V7 V7 I7 I7",
+        key="A minor",
+    ),
+    "blues7": Song(
+        chord_pattern="I IV I I7 IV IV7 I I7 V IV I V7",
+        key="A minor",
+        strum_pattern="D-DU-UD-/D-DU-UDU",
+    ),
+    "for-you-blue": Song(
+        beats_per_minute=90,
+        chord_pattern="I7 IV7 I7 I7 IV7 IV7 I7 I7 V7 IV7 I7 V7",
+        key="D minor",
+    ),
+    "hey-jude": Song(
+        beats_per_minute=150,
+        chord_pattern=(
+            "I I V V V7 V7 I I IV IV I I V V7 I I "  # verse
+            + "I7 I7 IV IVmaj7/iii ii7 IV/I V7 V7 I I"  # chorus
+        ),
+        key="F major",
+        strum_pattern="D-D-D-DU",
+    ),
+    "key": Song(
+        chord_pattern="I ii iii IV V vi viidim",
+        key="A major",
+    ),
+    "paint-it-black": Song(
+        beats_per_minute=160,
+        chord_pattern="i VII III VII i i i i i VII III VII IV IV V/iv V/iv",
+        key="E minor",
+        strum_pattern="D-DU/DUD/U-UD/U-UD-",
+    ),
+    "pop": Song(
+        chord_pattern="I V vi IV",
+        key="C major",
+    ),
+}
 
 
 def print_scale_chords(scale: Scale, romans: Iterable[str]) -> None:
@@ -104,7 +174,7 @@ if __name__ == "__main__":
 
     subparser = subparsers.add_parser("render")
     subparser.add_argument("--repeat", type=int, default=1)
-    subparser.add_argument("--song", required=True)
+    subparser.add_argument("--song", type=str, choices=SONGS.keys(), required=True)
 
     options = parser.parse_args()
 
@@ -121,78 +191,7 @@ if __name__ == "__main__":
             )
         )
     else:
-        songs = {
-            "50s": Song(
-                chord_pattern="I vi IV V",
-                key="C",
-                scale=Scale("C", Mode.IONIAN),
-            ),
-            "50-ways-to-leave-your-lover": Song(
-                chord_pattern="i/III VII6 VImaj7 V7b9 "
-                + "i VII#dim7 IIdim7 Vaug7 "
-                + "i VII6 VImaj7 V7b9 "
-                + "i iv7 i",
-                key="e",
-                scale=Scale("E", Mode.AEOLIAN),
-                strum_pattern="D---",
-            ),
-            "blueforyou": Song(
-                beats_per_minute=90,
-                chord_pattern="I7 IV7 I7 I7 " + "IV7 IV7 I7 I7 " + "V7 IV7 I7 V7",
-                key="D",
-                scale=Scale("D", Mode.IONIAN),
-            ),
-            "blues": Song(
-                chord_pattern="I7 I7 I7 I7 IV7 IV7 I7 I7 V7 IV7 I7 V7",
-                key="a",
-                scale=Scale("A", Mode.AEOLIAN),
-            ),
-            "blues-quick-change": Song(
-                chord_pattern="I7 IV7 I7 I7 IV7 IV7 I7 I7 V7 IV7 I7 V7",
-                key="a",
-                scale=Scale("A", Mode.AEOLIAN),
-            ),
-            "blues-slow-change": Song(
-                chord_pattern="I7 I7 I7 I7 IV7 IV7 I7 I7 V7 V7 I7 I7",
-                key="a",
-                scale=Scale("A", Mode.AEOLIAN),
-            ),
-            "blues7": Song(
-                chord_pattern="I IV I I7 IV IV7 I I7 V IV I V7",
-                key="a",
-                scale=Scale("A", Mode.AEOLIAN),
-                strum_pattern="D-DU-UD-/D-DU-UDU",
-            ),
-            "heyjude": Song(
-                beats_per_minute=150,
-                chord_pattern=(
-                    "I I V V V7 V7 I I IV IV I I V V7 I I "  # verse
-                    + "I7 I7 IV IVmaj7/iii ii7 IV/I V7 V7 I I"  # chorus
-                ),
-                key="F",
-                scale=Scale("F", Mode.IONIAN),
-                strum_pattern="D-D-D-DU",
-            ),
-            "key": Song(
-                chord_pattern="I ii iii IV V vi viidim",
-                key="A",
-                scale=Scale("A", Mode.IONIAN),
-            ),
-            "paintitblack": Song(
-                beats_per_minute=160,
-                chord_pattern="i VII III VII i i i i i VII III VII IV IV V/iv V/iv",
-                key="e",
-                scale=Scale("E", Mode.AEOLIAN),
-                strum_pattern="D-DU/DUD/U-UD/U-UD-",
-            ),
-            "pop": Song(
-                chord_pattern="I V vi IV",
-                key="C",
-                scale=Scale("C", Mode.IONIAN),
-            ),
-        }
-        song = songs[options.song]
-
+        song = SONGS[options.song]
         print_song_info(song)
         track = strum_song(repeat=options.repeat, song=song)
 
